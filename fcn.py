@@ -44,7 +44,7 @@ import six
 
 # 数据集路径
 # data_dir = "/content/kaggle_3m"   
-data_dir = "/content/HPML_Project/lgg-mri-segmentation/kaggle_3m"
+data_dir = "/home/sz3714/HPML_Project/lgg-mri-segmentation/kaggle_3m"
 
 # 生成mask和img的路径地址array
 images_dir = []
