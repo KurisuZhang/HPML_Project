@@ -10,7 +10,7 @@ Original file is located at
 
 # 加载包
 """
-
+from __future__ import division
 import os
 import numpy as np
 import pandas as pd
@@ -31,6 +31,11 @@ from sklearn.metrics import confusion_matrix
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+from sklearn.metrics import confusion_matrix
+import numpy as np
+import six
 
 """# 加载Dataset
 
@@ -203,10 +208,7 @@ y,u = a
 
 confusion_matrix([0, 1, 0, 1], [1, 1, 1, 0])
 
-from __future__ import division
-from sklearn.metrics import confusion_matrix
-import numpy as np
-import six
+
 
 
 def calc_semantic_segmentation_confusion(pred_labels, gt_labels):
@@ -273,78 +275,6 @@ val_data = DataLoader(Load_val, batch_size=8, shuffle=True, num_workers=1)
 
 import time
 
-fcn = FCN(num_class)
-fcn = fcn.to(device)
-criterion = nn.NLLLoss().to(device)
-optimizer = optim.Adam(fcn.parameters(), lr=1e-4)
-
-net = fcn.train()
-
-best = [0]
-Epoch = 3
-
-train_miou_epoch = []
-train_dice_epoch = []
-
-
-test_miou_epoch = []
-test_dice_epoch = []
-
-# 训练轮次
-for epoch in range(Epoch):
-    # xxx time
-    epoch_start_time = time.time()
-    comm_time = 0
-
-    train_loss = 0
-    train_miou = 0
-    train_dice = 0
-    error = 0
-    print('Epoch is [{}/{}]'.format(epoch + 1, Epoch))
-
-    # 训练批次
-    for i, sample in enumerate(train_data):
-        # 载入数据
-        img_data = sample['img'].to(device)
-        img_label = sample['label'].to(device)
-        # xxx time
-        # 训练
-        start_comm = time.time()
-        out = net(img_data)
-        comm_time += time.time() - start_comm
-
-        out = F.log_softmax(out, dim=1)
-        loss = criterion(out, img_label)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item()
-        # 评估
-        pre_label = out.max(dim=1)[1].data.cpu().numpy()
-        true_label = img_label.data.cpu().numpy()
-        eval_metrix = eval_semantic_segmentation(pre_label, true_label)
-        train_miou += eval_metrix['miou']
-        train_dice += eval_metrix['dice']
-
-        # 打印每50次
-        if i%100 ==0:
-            print('|batch[{}/{}]|batch_loss:{:.9f}|'.format(i + 1, len(train_data), loss.item()))
-
-    metric_description = '|Train dice|: {:.5f}\n|Train Mean IoU|: {:.5f}'.format(
-        train_dice / len(train_data),
-        train_miou / len(train_data))
-
-    print("-----------------")
-    print(metric_description)
-    print(f"Training time: {epoch_time:.2f} seconds")
-    print(f"Communication time: {comm_time:.4f} seconds")
-    print("-----------------")
-
-    epoch_time = time.time() - epoch_start_time
-
-
-    train_miou_epoch.append(train_miou / len(train_data))
-    train_dice_epoch.append(train_dice / len(train_data))
 
 def train(rank, world_size, net, batch_size, epochs):
     torch.manual_seed(0)
