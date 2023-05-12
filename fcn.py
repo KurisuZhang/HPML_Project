@@ -17,12 +17,11 @@ from torchvision import models
 from torchsummary import summary
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import confusion_matrix
-
+import ssl
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
-
-
+ssl._create_default_https_context = ssl._create_unverified_context
 from sklearn.metrics import confusion_matrix
 import numpy as np
 import six
@@ -111,17 +110,6 @@ class MRIDataset(Dataset):
         return img, label
 
 
-"""# FCN"""
-
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-
-import numpy as np
-import torch
-from torchvision import models
-from torch import nn
-
-
 class FCN(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
@@ -168,7 +156,6 @@ class FCN(nn.Module):
         output = self.conv_trans2(add2)
         output = self.upsample_8x(output)
         return output
-
 
 
 
@@ -239,11 +226,11 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
     
     train_data = torch.utils.data.DataLoader(
         Load_train,
-        batch_size=16,
+        batch_size=batch_size,
         sampler=train_sampler
     )
 
-    Epoch = 3
+    Epoch = 2
 
     train_miou_epoch = []
     train_dice_epoch = []
@@ -262,7 +249,7 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
         train_miou = 0
         train_dice = 0
         error = 0
-        print('Epoch is [{}/{}]'.format(epoch + 1, Epoch))
+        print('Epoch is [{}/{}], , batch size{}'.format(epoch + 1, Epoch, batch_size))
 
         # 训练批次
         for i, sample in enumerate(train_data):
@@ -303,16 +290,10 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
         print(f"Communication time: {comm_time:.4f} seconds")
         print("-----------------")
 
-        
-
+    
 
         train_miou_epoch.append(train_miou / len(train_data))
         train_dice_epoch.append(train_dice / len(train_data))
-
-
-
-
-
 
 
 
@@ -334,14 +315,24 @@ if __name__ == "__main__":
 
     gpu_count = 1
     epochs = 2
-    batch_sizes = [32, 128, 512]
+    batch_sizes = [16, 32, 64, 128, 256, 512]
     gpu_counts = [1]
-    fcn = FCN(2)
+    for batch_size in batch_sizes:
+        try:
+            fcn = FCN(2)
+            os.environ['MASTER_ADDR'] = 'localhost'
+            os.environ['MASTER_PORT'] = '12355'
+            for gpu_count in gpu_counts:        
+                print(f"\nRunning with {gpu_count} GPUs")
+                world_size = gpu_count
+                mp.spawn(train, args=(world_size, fcn, batch_size, epochs, Load_train), nprocs=world_size, join=True)
 
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                print(f"Batch size {batch_size} is too large for the available GPU memory.")
+                break
+            else:
+                raise e 
 
-    for gpu_count in gpu_counts:        
-        print(f"\nRunning with {gpu_count} GPUs")
-        world_size = gpu_count
-        mp.spawn(train, args=(world_size, fcn, 16, epochs, Load_train), nprocs=world_size, join=True)
+
+
