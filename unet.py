@@ -280,7 +280,7 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
 
     net = net.train()
     net.to(device)
-    net = DDP(net, device_ids=[rank],find_unused_parameters=True)
+    net = DDP(net, device_ids=[rank])
 
     criterion = nn.NLLLoss().to(device)
     optimizer = optim.Adam(net.parameters(), lr=1e-4)
