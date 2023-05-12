@@ -307,7 +307,7 @@ if __name__ == "__main__":
     for i in masks_dir:
         images_dir.append(i.replace('_mask',''))
 
-    print("image的长度{}, image前两张{}".format(len(images_dir), images_dir[:2]))
+    print("FCN")
 
 
 
@@ -320,6 +320,7 @@ if __name__ == "__main__":
     for batch_size in batch_sizes:
         try:
             fcn = FCN(2)
+            print("FCN")
             os.environ['MASTER_ADDR'] = 'localhost'
             os.environ['MASTER_PORT'] = '12355'
             for gpu_count in gpu_counts:        
