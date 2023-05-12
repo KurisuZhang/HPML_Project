@@ -350,7 +350,6 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
             train_miou / len(train_data))
 
         epoch_time = time.time() - epoch_start_time
-        print("-----------------")
         print(metric_description)
         print(f"Training time: {epoch_time:.2f} seconds")
         print(f"Communication time: {comm_time:.4f} seconds")
