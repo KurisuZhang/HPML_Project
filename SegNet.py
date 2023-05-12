@@ -394,8 +394,8 @@ if __name__ == "__main__":
 
     gpu_count = 1
     epochs = 2
-    batch_sizes = [16, 32, 64, 128, 256, 512]
-    gpu_counts = [1]
+    batch_sizes = [16, 32, 64, 128, 256]
+    gpu_counts = [1,2,3,4]
     for batch_size in batch_sizes:
         try:
             net = SegNet()
