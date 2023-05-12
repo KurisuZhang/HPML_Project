@@ -110,52 +110,118 @@ class MRIDataset(Dataset):
         return img, label
 
 
-class FCN(nn.Module):
-    def __init__(self, num_classes):
-        super().__init__()
-        pretrained_net = models.vgg16_bn(weights="VGG16_BN_Weights.IMAGENET1K_V1")
-        self.stage1 = pretrained_net.features[:7]
-        self.stage2 = pretrained_net.features[7:14]
-        self.stage3 = pretrained_net.features[14:24]
-        self.stage4 = pretrained_net.features[24:34]
-        self.stage5 = pretrained_net.features[34:]
-
-        self.scores1 = nn.Conv2d(512, num_classes, 1)
-        self.scores2 = nn.Conv2d(512, num_classes, 1)
-        self.scores3 = nn.Conv2d(128, num_classes, 1)
-
-        self.conv_trans1 = nn.Conv2d(512, 256, 1)
-        self.conv_trans2 = nn.Conv2d(256, num_classes, 1)
-
-        self.upsample_8x = nn.ConvTranspose2d(num_classes, num_classes, 16, 8, 4, bias=False)
-        # self.upsample_8x.weight.data = bilinear_kernel(num_classes, num_classes, 16)
-
-        self.upsample_2x_1 = nn.ConvTranspose2d(512, 512, 4, 2, 1, bias=False)
-        # self.upsample_2x_1.weight.data = bilinear_kernel(512, 512, 4)
-
-        self.upsample_2x_2 = nn.ConvTranspose2d(256, 256, 4, 2, 1, bias=False)
-        # self.upsample_2x_2.weight.data = bilinear_kernel(256, 256, 4)
+class conv_block(nn.Module):
+    """
+    Convolution Block 
+    """
+    def __init__(self, in_ch, out_ch):
+        super(conv_block, self).__init__()
+        
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True))
 
     def forward(self, x):
-        s1 = self.stage1(x)
-        s2 = self.stage2(s1)
-        s3 = self.stage3(s2)
-        s4 = self.stage4(s3)
-        s5 = self.stage5(s4)
 
-        scores1 = self.scores1(s5)
-        s5 = self.upsample_2x_1(s5)
-        add1 = s5 + s4
+        x = self.conv(x)
+        return x
 
-        scores2 = self.scores2(add1)
 
-        add1 = self.conv_trans1(add1)
-        add1 = self.upsample_2x_2(add1)
-        add2 = add1 + s3
+class up_conv(nn.Module):
+    """
+    Up Convolution Block
+    """
+    def __init__(self, in_ch, out_ch):
+        super(up_conv, self).__init__()
+        self.up = nn.Sequential(
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
 
-        output = self.conv_trans2(add2)
-        output = self.upsample_8x(output)
-        return output
+    def forward(self, x):
+        x = self.up(x)
+        return x
+
+
+class U_Net(nn.Module):
+
+    def __init__(self, in_ch=3, out_ch=1):
+        super(U_Net, self).__init__()
+
+        n1 = 64
+        filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
+        
+        self.Maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.Maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.Maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.Maxpool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.Conv1 = conv_block(in_ch, filters[0])
+        self.Conv2 = conv_block(filters[0], filters[1])
+        self.Conv3 = conv_block(filters[1], filters[2])
+        self.Conv4 = conv_block(filters[2], filters[3])
+        self.Conv5 = conv_block(filters[3], filters[4])
+
+        self.Up5 = up_conv(filters[4], filters[3])
+        self.Up_conv5 = conv_block(filters[4], filters[3])
+
+        self.Up4 = up_conv(filters[3], filters[2])
+        self.Up_conv4 = conv_block(filters[3], filters[2])
+
+        self.Up3 = up_conv(filters[2], filters[1])
+        self.Up_conv3 = conv_block(filters[2], filters[1])
+
+        self.Up2 = up_conv(filters[1], filters[0])
+        self.Up_conv2 = conv_block(filters[1], filters[0])
+
+        self.Conv = nn.Conv2d(filters[0], out_ch, kernel_size=1, stride=1, padding=0)
+
+       # self.active = torch.nn.Sigmoid()
+
+    def forward(self, x):
+
+        e1 = self.Conv1(x)
+
+        e2 = self.Maxpool1(e1)
+        e2 = self.Conv2(e2)
+
+        e3 = self.Maxpool2(e2)
+        e3 = self.Conv3(e3)
+
+        e4 = self.Maxpool3(e3)
+        e4 = self.Conv4(e4)
+
+        e5 = self.Maxpool4(e4)
+        e5 = self.Conv5(e5)
+
+        d5 = self.Up5(e5)
+        d5 = torch.cat((e4, d5), dim=1)
+
+        d5 = self.Up_conv5(d5)
+
+        d4 = self.Up4(d5)
+        d4 = torch.cat((e3, d4), dim=1)
+        d4 = self.Up_conv4(d4)
+
+        d3 = self.Up3(d4)
+        d3 = torch.cat((e2, d3), dim=1)
+        d3 = self.Up_conv3(d3)
+
+        d2 = self.Up2(d3)
+        d2 = torch.cat((e1, d2), dim=1)
+        d2 = self.Up_conv2(d2)
+
+        out = self.Conv(d2)
+
+        #d1 = self.active(out)
+
+        return out
 
 
 
@@ -284,7 +350,7 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
             train_miou / len(train_data))
 
         epoch_time = time.time() - epoch_start_time
-
+        print("-----------------")
         print(metric_description)
         print(f"Training time: {epoch_time:.2f} seconds")
         print(f"Communication time: {comm_time:.4f} seconds")
@@ -319,13 +385,13 @@ if __name__ == "__main__":
     gpu_counts = [1]
     for batch_size in batch_sizes:
         try:
-            fcn = FCN(2)
+            net =  U_Net(3,2)
             os.environ['MASTER_ADDR'] = 'localhost'
             os.environ['MASTER_PORT'] = '12355'
             for gpu_count in gpu_counts:        
                 print(f"\nRunning with {gpu_count} GPUs")
                 world_size = gpu_count
-                mp.spawn(train, args=(world_size, fcn, batch_size, epochs, Load_train), nprocs=world_size, join=True)
+                mp.spawn(train, args=(world_size, net, batch_size, epochs, Load_train), nprocs=world_size, join=True)
 
         except RuntimeError as e:
             if "out of memory" in str(e):
