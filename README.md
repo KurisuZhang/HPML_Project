@@ -38,11 +38,12 @@ singularity exec --nv \
 ```
 
 ## Results
+### base model
 ![result](./result/result.png)
-
-
 | Network | MIoU   |
 |---------|--------|
 | FCN     | 80.95% |
 | U-Net   | 83.40% |
 | SegNet  | 78.02% |
+
+### optimization
