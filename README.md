@@ -8,7 +8,7 @@ The goal of the project is to conduct a comparative analysis of optimization tec
 ## Code structure
 
 
-## Example commands to execute the code        
+## Commands to execute the code        
 
 
 ## Results
