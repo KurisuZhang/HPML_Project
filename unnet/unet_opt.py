@@ -293,7 +293,8 @@ def train(rank, world_size, net, batch_size, epochs, Load_train):
     train_data = torch.utils.data.DataLoader(
         Load_train,
         batch_size=batch_size,
-        sampler=train_sampler
+        sampler=train_sampler,
+        num_workers=1
     )
 
     Epoch = 2
