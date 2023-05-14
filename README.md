@@ -47,3 +47,23 @@ singularity exec --nv \
 | SegNet  | 78.02% |
 
 ### optimization
+![result](./result/Picture1.png)
+
+![result](./result/Picture2.png)
+
+![result](./result/Picture3.png)
+
+- Using DistributedDataParallel to train models on multiple GPUs does help decrease training time a lot for all 3 models.
+- When using 0 worker in DataLoader, the training time is cut to about half when using 2 GPUs; but from 2-4 GPUs, training time increases tremendously.
+- Training time for all 3 models decreases as # of GPUs increases when # of workers in DataLoader is not 0.
+- Training time for all 3 models increases as # of workers in DataLoader increases.
+
+
+DistributedDataParallel allows for the parallelization of model training across multiple GPUs. This parallelization can significantly reduce the training time for large models and datasets.  
+
+When setting num_workers to 0 (the default), data loading is performed in the main process. This can slow down training because the GPU might need to wait for data to be loaded before it can proceed with the next iteration.  
+
+When setting num_workers to a number greater than 0, that many subprocesses will be used to load data in parallel. While the GPU is processing one batch of data, the next batch can be loaded by one of the worker processes. This can reduce or eliminate the time the GPU spends waiting for data, which can lead to faster training times.  
+
+Each worker process consumes some amount of CPU memory, and there is some overhead involved in coordinating between the worker processes. If num_workers is set too high, these factors can actually slow down data loading or lead to out-of-memory errors.
+
